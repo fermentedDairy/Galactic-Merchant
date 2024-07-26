@@ -46,7 +46,6 @@ public final class RomanNumeralConverter {
         int decimal = 0;
         String tmpString = roman.trim().toUpperCase();
         for (final String value : DESCENDING_ORDER_SYMBOLS) {
-            System.out.println("Checking " + value + " for " + tmpString);
             if (tmpString.startsWith(value)) {
                 decimal += SYMBOL_TO_VALUE_MAP.get(value);
                 tmpString = tmpString.replaceFirst(value, "");
