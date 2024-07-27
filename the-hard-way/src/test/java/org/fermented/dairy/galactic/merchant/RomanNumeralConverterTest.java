@@ -43,7 +43,7 @@ class RomanNumeralConverterTest {
 
 
     public static Stream<Arguments> provideInvalidRomanNumerals() {
-        return Stream.of("No", "MNo", "_+{}").map(Arguments::of);
+        return Stream.of("No", "MNo", "_+{}", "VX", "IIII", "XXXX", "CCCC", "VIV").map(Arguments::of);
     }
 
     public static Stream<Arguments> provideValidRomanNumerals() {
@@ -54,6 +54,9 @@ class RomanNumeralConverterTest {
                 Arguments.of("III", 3),
                 Arguments.of("IV", 4),
                 Arguments.of("V", 5),
+                Arguments.of("VI", 6),
+                Arguments.of("VII", 7),
+                Arguments.of("VIII", 8),
                 Arguments.of("IX", 9),
                 Arguments.of("X", 10),
                 Arguments.of("XL", 40),
@@ -66,7 +69,8 @@ class RomanNumeralConverterTest {
                 Arguments.of("M", 1000),
                 Arguments.of("MCMLXXXIV", 1984),
                 Arguments.of("MMXXIV", 2024),
-                Arguments.of("CXXIX", 129)
+                Arguments.of("CXXIX", 129),
+                Arguments.of("MMMCMXCIX", 3999)
         );
     }
 }
