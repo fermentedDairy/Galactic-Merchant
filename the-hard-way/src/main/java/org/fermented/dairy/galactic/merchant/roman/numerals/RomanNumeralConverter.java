@@ -1,8 +1,7 @@
-package org.fermented.dairy.galactic.merchant;
+package org.fermented.dairy.galactic.merchant.roman.numerals;
 
 import java.util.List;
 import java.util.Map;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
@@ -50,6 +49,12 @@ public final class RomanNumeralConverter {
     private static final Pattern ROMAN_NUMERAL_REGEX = Pattern.compile(
             "^(?=[MDCLXVI])(M{0,3})*(C[MD]|D?C{0,3})(X[CL]|L?X{0,3})(I[XV]|V?I{0,3})$");
 
+    /**
+     * Converts a roman numeral string to an integer
+     *
+     * @param roman The Roman numeral string
+     * @return an integer representation of the roman numeral
+     */
     public static int convert(final String roman) {
 
         if (roman == null || roman.isBlank())

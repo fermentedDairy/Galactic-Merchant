@@ -56,7 +56,7 @@ composed of 1, 9, 0, and 3. To write the Roman numeral, each of the non-zero dig
 be treated separately.
 
 In the above example, 1,000 = M, 900 = CM, and 3 = III. Therefore, 1903 = MCMIII.
-Source: Wikipedia http://en.wikipedia.org/wiki/Roman_numerals
+Source: Wikipedia https://en.wikipedia.org/wiki/Roman_numerals
 
 Input to your program consists of lines of text detailing your notes on the conversion
 between intergalactic units and roman numerals. You are expected to handle invalid
@@ -89,6 +89,9 @@ I have no idea what you are talking about
 
 ## Example Logic under Test
 _Using examples_
+
 glob prok Silver -> IV silver -> 4 silver -> 4 * 17 Credits -> 68 Credits
+
 glob prok Gold -> IV Gold -> 4 Gold -> 4 * 14450 Credits -> 57800 Credits
+
 glob prok Iron -> IV Iron -> 4 Iron -> 4 * 195.5 Credits -> 782 Credits

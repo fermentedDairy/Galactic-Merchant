@@ -1,11 +1,171 @@
 package org.fermented.dairy.galactic.merchant;
 
+import org.fermented.dairy.galactic.merchant.exceptions.UnknownValueException;
+import org.fermented.dairy.galactic.merchant.functional.TriFunction;
+import org.fermented.dairy.galactic.merchant.model.CompleteValueHintQueryData;
+import org.fermented.dairy.galactic.merchant.model.GetValueQueryData;
+import org.fermented.dairy.galactic.merchant.model.MapToRomanQueryData;
+import org.fermented.dairy.galactic.merchant.model.QueryData;
+import org.fermented.dairy.galactic.merchant.model.SimpleTranslationData;
+import org.fermented.dairy.galactic.merchant.model.UnknownQueryData;
+import org.fermented.dairy.galactic.merchant.roman.numerals.RomanNumeralConverter;
+
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.function.BiFunction;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 /**
  * Class that accepts input and routes to appropriate router.
  */
 public class ValueConverter {
 
-    public void acceptInput(String input) {
+    private static final List<Pattern> MAP_TO_ROMAN_QUERY_PATTERNS =
+            Stream.of("^(?<alienWord>\\w+) is (?<romanChar>M|m|D|d|C|c|L|l|X|x|V|v|I|i)$")
+                    .map(Pattern::compile).toList();
+
+    private static final List<Pattern> COMPLETE_VALUE_HINT_QUERY_PATTERNS =
+            Stream.of("^(?<alienWords>[\\w ]+) (?<metal>\\w+) is (?<amount>\\d+) Credits$")
+                    .map(Pattern::compile).toList();
+
+    private static final List<Pattern> GET_VALUE_QUERY_PATTERNS =
+            Stream.of("how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+) \\?$",
+                            "how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+)\\?$")
+                    .map(Pattern::compile).toList();
+
+    private static final List<Pattern> SIMPLE_TRANSLATION_QUERY_PATTERNS =
+            Stream.of("how much is (?<alienWords>[\\w ]+) \\?",
+                    "how much is (?<alienWords>[\\w ]+)\\?")
+                    .map(Pattern::compile).toList();
+
+    @SuppressWarnings("Convert2MethodRef")//Deliberate to allow for parameter order to change without using indexes in the template
+    private static final TriFunction<String, String, Double, String> GET_VALUE_QUERY_RESULT_FUNCTION =
+            (alienWords, metal, value) -> "%s %s is %.2f Credits".formatted(alienWords, metal, value);
+
+    @SuppressWarnings("Convert2MethodRef")//Deliberate to allow for parameter order to change without using indexes in the template
+    private static final BiFunction<String, Integer, String> GET_SIMPLE_QUERY_RESULT_FUNCTION =
+            (alienWords, value) -> "%s is %d".formatted(alienWords, value);
+
+    private static final String VALUE_UNKNOWN_TEMPLATE = "I don't know what %s is";
+    private static final String UNKNOWN_QUERY = "I have no idea what you are talking about";
+
+    private final Map<String, Character> alienWordToRomanCharMap = HashMap.newHashMap(7);
+    private final Map<String, Double> metalToMultiplierMap = HashMap.newHashMap(3);
+
+    /**
+     * Translates input query to response.
+     * @param input The input query
+     * @return The response, empty string if query is accepted but no response is anticipated as in the case of a query that populates data
+     */
+    public String acceptInput(String input) {
+        try {
+            return switch (getQueryData(input)) {
+                case MapToRomanQueryData(String alienWord, char romanNumeral) -> {
+                    alienWordToRomanCharMap.put(alienWord, romanNumeral);
+                    yield "";
+                }
+                case CompleteValueHintQueryData(String alienPhrase, String metal, int value) -> {
+                    int fromAlienPhrase = RomanNumeralConverter.convert(
+                            getAlienToRoman(alienPhrase)
+                    );
+                    metalToMultiplierMap.put(metal, (double)value/fromAlienPhrase);
+                    yield "";
+                }
+                case GetValueQueryData(String alienPhrase, String metal) -> translateAlienPhrase(alienPhrase, metal);
+                case SimpleTranslationData(String alienPhrase) ->
+                        GET_SIMPLE_QUERY_RESULT_FUNCTION.apply(
+                                alienPhrase,
+                                RomanNumeralConverter.convert(getAlienToRoman(alienPhrase))
+                        );
+                //noinspection unused unnamed lambda params only available in JDK 22
+                case UnknownQueryData unknown -> UNKNOWN_QUERY;
+            };
+        } catch (final UnknownValueException tfe){
+            return VALUE_UNKNOWN_TEMPLATE.formatted(tfe.getUnknownValue());
+        }
+    }
+
+    private QueryData getQueryData(final String input) {
+        Optional<MapToRomanQueryData> optionalMapToRomanQueryData =
+                MAP_TO_ROMAN_QUERY_PATTERNS.stream()
+                        .map(pattern -> pattern.matcher(input))
+                        .filter(Matcher::matches)
+                        .map(matcher -> new MapToRomanQueryData(
+                                    matcher.group("alienWord"),
+                                    matcher.group("romanChar")
+                                            .toUpperCase()
+                                            .toCharArray()[0]))
+                        .findFirst();
+        if (optionalMapToRomanQueryData.isPresent())
+            return optionalMapToRomanQueryData.get();
+
+        Optional<CompleteValueHintQueryData> optionalCompleteValueHintQueryData =
+                COMPLETE_VALUE_HINT_QUERY_PATTERNS.stream()
+                        .map(pattern -> pattern.matcher(input))
+                        .filter(Matcher::matches)
+                        .map(matcher -> new CompleteValueHintQueryData(matcher.group("alienWords"),
+                                    matcher.group("metal"),
+                                    Integer.parseInt(matcher.group("amount"))))
+                        .findFirst();
+
+        if (optionalCompleteValueHintQueryData.isPresent())
+            return optionalCompleteValueHintQueryData.get();
+
+        Optional<GetValueQueryData> optionalGetValueQueryData =
+                GET_VALUE_QUERY_PATTERNS.stream()
+                        .map(pattern -> pattern.matcher(input))
+                        .filter(Matcher::matches)
+                        .map(matcher -> new GetValueQueryData(
+                                matcher.group("alienWords"),
+                                matcher.group("metal")
+                        ))
+                        .findFirst();
+
+        if(optionalGetValueQueryData.isPresent())
+            return optionalGetValueQueryData.get();
+
+        Optional<SimpleTranslationData> optionalSimpleTranslationData =
+                SIMPLE_TRANSLATION_QUERY_PATTERNS.stream()
+                        .map(pattern -> pattern.matcher(input))
+                        .filter(Matcher::matches)
+                        .map(matcher -> new SimpleTranslationData(matcher.group("alienWords")))
+                        .findFirst();
+
+        if(optionalSimpleTranslationData.isPresent())
+            return optionalSimpleTranslationData.get();
+
+        return new UnknownQueryData(input);
+    }
+
+    private String translateAlienPhrase(final String alienPhrase, final String metal) {
+        final int value = RomanNumeralConverter.convert(getAlienToRoman(alienPhrase));
+        final Double metalValue = metalToMultiplierMap.get(metal);
+
+        if(metalValue == null)
+            throw new UnknownValueException(metal);
+
+        final double amount = value * metalValue;
+
+        return GET_VALUE_QUERY_RESULT_FUNCTION.apply(alienPhrase, metal, amount);
 
     }
+
+    private String getAlienToRoman(final String alienPhrase) {
+        return Arrays.stream(alienPhrase.split(" "))
+                .map(alienWord -> {
+                    Character romanChar = alienWordToRomanCharMap.get(alienWord);
+                    if (romanChar == null)
+                        throw new UnknownValueException(alienWord);
+                    return romanChar;
+                })
+                .map(Object::toString)
+                .collect(Collectors.joining());
+    }
+
 }

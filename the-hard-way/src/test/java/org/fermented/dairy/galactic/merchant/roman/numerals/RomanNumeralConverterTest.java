@@ -1,4 +1,4 @@
-package org.fermented.dairy.galactic.merchant;
+package org.fermented.dairy.galactic.merchant.roman.numerals;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
