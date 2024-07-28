@@ -2,6 +2,7 @@ package org.fermented.dairy.galactic.merchant;
 
 import org.fermented.dairy.galactic.merchant.exceptions.UnknownValueException;
 import org.fermented.dairy.galactic.merchant.functional.TriFunction;
+import org.fermented.dairy.galactic.merchant.functional.ValueFromSupplier;
 import org.fermented.dairy.galactic.merchant.model.CompleteValueHintQueryData;
 import org.fermented.dairy.galactic.merchant.model.GetValueQueryData;
 import org.fermented.dairy.galactic.merchant.model.MapToRomanQueryData;
@@ -57,7 +58,6 @@ public class ValueConverter {
     private static final String UNKNOWN_QUERY = "I have no idea what you are talking about";
 
     private final Map<String, Character> alienWordToRomanCharMap = HashMap.newHashMap(7);
-    private final Map<String, Double> metalToMultiplierMap = new HashMap<>();
     private final Map<String, Supplier<Double>> metalToMultiplierSupplierMap = new HashMap<>();
 
     /**
@@ -76,7 +76,7 @@ public class ValueConverter {
                 }
                 case CompleteValueHintQueryData(String alienPhrase, String metal, int value) -> {
                     //<editor-fold desc="Ingest Complete Value Hint Data" defaultstate="collapsed">
-                    Supplier<Double> getAmount = () -> {
+                    Supplier<Double> amountSupplier = () -> {
                         int fromAlienPhrase = RomanNumeralConverter.convert(
                                 getAlienToRoman(alienPhrase)
                         );
@@ -84,9 +84,9 @@ public class ValueConverter {
                     };
 
                     if (areAllKnown(alienPhrase))
-                        metalToMultiplierMap.put(metal, getAmount.get());
+                        metalToMultiplierSupplierMap.put(metal, ValueFromSupplier.value(amountSupplier.get()));
                     else
-                        metalToMultiplierSupplierMap.put(metal, getAmount);  //If alien to roman numeral mapping is not known, map the supplier for later
+                        metalToMultiplierSupplierMap.put(metal, ValueFromSupplier.supplier(amountSupplier));  //If alien to roman numeral mapping is not known, map the supplier for later
 
                     yield "";
                     //</editor-fold>
@@ -159,13 +159,9 @@ public class ValueConverter {
 
     private String translateAlienPhrase(final String alienPhrase, final String metal) {
         final int value = RomanNumeralConverter.convert(getAlienToRoman(alienPhrase));
-        final Double metalValue = metalToMultiplierMap.computeIfAbsent(
-                metal,
-                metalParam -> Optional.ofNullable(metalToMultiplierSupplierMap.get(metalParam))
-                        .map(Supplier::get)
-                        .orElseThrow(() -> new UnknownValueException(metalParam))
-        );
-        metalToMultiplierSupplierMap.remove(metal);//Supplier not needed anymore, allow it to be GCed
+        final Double metalValue = metalToMultiplierSupplierMap
+                .getOrDefault(metal, () -> {throw new UnknownValueException(metal);})//Workaround for missing orThrow method
+                .get();
         final double amount = value * metalValue;
 
         return GET_VALUE_QUERY_RESULT_FUNCTION.apply(alienPhrase, metal, amount);
