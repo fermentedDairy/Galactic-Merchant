@@ -11,29 +11,21 @@ import java.util.regex.Pattern;
  * Upper limit for converter will be MMMCMXCIX = 3999
  */
 public final class RomanNumeralConverter {
-    //Mapping roman numeral to decimal, some are fundamental and provided. others are pre-calculated
+    //Mapping roman numeral to decimals
     private static final Map<String, Integer> SYMBOL_TO_VALUE_MAP = Map.ofEntries(
             Map.entry("I", 1),
-            Map.entry("II", 2),
-            Map.entry("III", 3),
             Map.entry("IV", 4),
             Map.entry("V", 5),
             Map.entry("IX", 9),
             Map.entry("X", 10),
-            Map.entry("XX", 20),
-            Map.entry("XXX", 30),
             Map.entry("XL", 40),
             Map.entry("L", 50),//Problem states that this is 250 but the number system doesn't work unless it's 50
             Map.entry("XC", 90),
             Map.entry("C", 100),
-            Map.entry("CC", 200),
-            Map.entry("CCC", 300),
             Map.entry("CD", 400),
             Map.entry("D", 500),
             Map.entry("CM", 900),
-            Map.entry("M", 1000),
-            Map.entry("MM", 2000),
-            Map.entry("MMM", 3000)
+            Map.entry("M", 1000)
     );
 
     private static final List<String> DESCENDING_ORDER_SYMBOLS =
@@ -68,7 +60,7 @@ public final class RomanNumeralConverter {
         int decimal = 0;
 
         for (final String value : DESCENDING_ORDER_SYMBOLS) {
-            if (tmpRoman.startsWith(value)) {
+            while (tmpRoman.startsWith(value)) {
                 decimal += SYMBOL_TO_VALUE_MAP.get(value);
                 tmpRoman = tmpRoman.replaceFirst(value, "");
             }
