@@ -16,17 +16,19 @@ class ValueConverterTest {
     @ParameterizedTest(name = "{index}. {1}")
     @MethodSource("getSuccessValues")
     @DisplayName("Successful translations")
-    void testSuccess(List<Pair<String, String>> value, String source) {
+    void testSuccess(final List<Pair<String, String>> value,
+                     @SuppressWarnings("unused") final String source //Linter says unused but is required for the naming of the parameter
+                     ) {
         final ValueConverter translator = new ValueConverter();
         value.forEach(pair ->
-                        assertEquals(pair.getLeft(), translator.acceptInput(pair.getRight()), () -> pair.getRight() + " not Mapped")
+                        assertEquals(pair.getLeft(), translator.acceptInput(pair.getRight()), () -> "\"" + pair.getRight() + "\" not Mapped")
                 );
     }
 
     @ParameterizedTest(name = "{index}. \"{0}\" is not valid")
     @MethodSource("getUnsuccessfulValues_notValidQueries")
     @DisplayName("unsuccessful translations due to invalid queries")
-    void testUnSuccessful_notValidQueries(String value) {
+    void testUnSuccessful_notValidQueries(final String value) {
         final ValueConverter translator = new ValueConverter();
         assertEquals("I have no idea what you are talking about", translator.acceptInput(value));
     }
@@ -34,7 +36,9 @@ class ValueConverterTest {
     @ParameterizedTest(name = "{index}. \"{1}\" missing Data should return \"{2}\"")
     @MethodSource("getUnsuccessfulValues_noData")
     @DisplayName("unsuccessful translations due to insufficient data")
-    void testUnsuccessfulValues_noData(List<String> preQueries, String value, String expected) {
+    void testUnsuccessfulValues_noData(final List<String> preQueries,
+                                       final String value,
+                                       final String expected) {
         final ValueConverter translator = new ValueConverter();
         preQueries.forEach(translator::acceptInput);
         assertEquals(expected, translator.acceptInput(value));
@@ -97,7 +101,26 @@ class ValueConverterTest {
                                 Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold?"),
                                 Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron?")
                         ),
-                        "Lower Case Roman Numerals in query")
+                        "Lower Case Roman Numerals in query"),
+                Arguments.of(
+                        List.of(
+                                Pair.of("", "glob glob Silver is 34 Credits"),
+                                Pair.of("", "glob prok Gold is 57800 Credits"),
+                                Pair.of("", "pish pish Iron is 3910 Credits"),
+                                Pair.of("", "glob is I"),
+                                Pair.of("", "prok is V"),
+                                Pair.of("", "pish is X"),
+                                Pair.of("", "tegj is L"),
+                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob ?"),
+                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob?"),
+                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver ?"),
+                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold ?"),
+                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron ?"),
+                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver?"),//Without the space before the '?'
+                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold?"),
+                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron?")
+                        ),
+                        "Complete hints before Roman Numeral mapping")
 
         );
     }

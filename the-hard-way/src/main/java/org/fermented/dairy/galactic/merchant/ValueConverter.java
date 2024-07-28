@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -56,7 +57,8 @@ public class ValueConverter {
     private static final String UNKNOWN_QUERY = "I have no idea what you are talking about";
 
     private final Map<String, Character> alienWordToRomanCharMap = HashMap.newHashMap(7);
-    private final Map<String, Double> metalToMultiplierMap = HashMap.newHashMap(3);
+    private final Map<String, Double> metalToMultiplierMap = new HashMap<>();
+    private final Map<String, Supplier<Double>> metalToMultiplierSupplierMap = new HashMap<>();
 
     /**
      * Translates input query to response.
@@ -67,15 +69,27 @@ public class ValueConverter {
         try {
             return switch (getQueryData(input)) {
                 case MapToRomanQueryData(String alienWord, char romanNumeral) -> {
+                    //<editor-fold desc="Ingest Alien Word to Roman Numeral Value Hint Data" defaultstate="collapsed">
                     alienWordToRomanCharMap.put(alienWord, romanNumeral);
                     yield "";
+                    //</editor-fold>
                 }
                 case CompleteValueHintQueryData(String alienPhrase, String metal, int value) -> {
-                    int fromAlienPhrase = RomanNumeralConverter.convert(
-                            getAlienToRoman(alienPhrase)
-                    );
-                    metalToMultiplierMap.put(metal, (double)value/fromAlienPhrase);
+                    //<editor-fold desc="Ingest Complete Value Hint Data" defaultstate="collapsed">
+                    Supplier<Double> getAmount = () -> {
+                        int fromAlienPhrase = RomanNumeralConverter.convert(
+                                getAlienToRoman(alienPhrase)
+                        );
+                        return (double) value / fromAlienPhrase;
+                    };
+
+                    if (areAllKnown(alienPhrase))
+                        metalToMultiplierMap.put(metal, getAmount.get());
+                    else
+                        metalToMultiplierSupplierMap.put(metal, getAmount);  //If alien to roman numeral mapping is not known, map the supplier for later
+
                     yield "";
+                    //</editor-fold>
                 }
                 case GetValueQueryData(String alienPhrase, String metal) -> translateAlienPhrase(alienPhrase, metal);
                 case SimpleTranslationData(String alienPhrase) ->
@@ -145,11 +159,13 @@ public class ValueConverter {
 
     private String translateAlienPhrase(final String alienPhrase, final String metal) {
         final int value = RomanNumeralConverter.convert(getAlienToRoman(alienPhrase));
-        final Double metalValue = metalToMultiplierMap.get(metal);
-
-        if(metalValue == null)
-            throw new UnknownValueException(metal);
-
+        final Double metalValue = metalToMultiplierMap.computeIfAbsent(
+                metal,
+                metalParam -> Optional.ofNullable(metalToMultiplierSupplierMap.get(metalParam))
+                        .map(Supplier::get)
+                        .orElseThrow(() -> new UnknownValueException(metalParam))
+        );
+        metalToMultiplierSupplierMap.remove(metal);//Supplier not needed anymore, allow it to be GCed
         final double amount = value * metalValue;
 
         return GET_VALUE_QUERY_RESULT_FUNCTION.apply(alienPhrase, metal, amount);
@@ -166,6 +182,11 @@ public class ValueConverter {
                 })
                 .map(Object::toString)
                 .collect(Collectors.joining());
+    }
+
+    private boolean areAllKnown(final String alienPhrase) {
+        return Arrays.stream(alienPhrase.split(" "))
+                .allMatch(alienWordToRomanCharMap::containsKey);
     }
 
 }
