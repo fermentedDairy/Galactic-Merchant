@@ -1,6 +1,5 @@
 package org.fermented.dairy.galactic.merchant.functional
 
-import java.util.*
 import java.util.function.Supplier
 
 
@@ -10,7 +9,7 @@ import java.util.function.Supplier
  * @param <T> the type being supplied
  */
 //This is deliberate as part of the class design
-class ValueFromSupplier<T> private constructor(value: T, supplier: Supplier<T>?) : Supplier<T> {
+class ValueFromSupplier<T> private constructor(value: T?, supplier: Supplier<T>?) : Supplier<T> {
     private var value: T?
     private var supplier: Supplier<T>?
 
@@ -50,7 +49,7 @@ class ValueFromSupplier<T> private constructor(value: T, supplier: Supplier<T>?)
          *
          * @param <T> the type being supplied
         </T> */
-        fun <T> value(value: T): Supplier<T> {
+        fun <T> value(value: T): ValueFromSupplier<T> {
             require(value != null) { "'value' cannot be null" }
             return ValueFromSupplier(value, null)
         }
@@ -59,14 +58,14 @@ class ValueFromSupplier<T> private constructor(value: T, supplier: Supplier<T>?)
          * Create a supplier that transitively calls the provided supplier.
          * Once initially supplied, the supplier will retain the value internally and supply that value instead of getting it from the supplier again
          *
-         * @param supplier the supplier being transitively called
+         * @param amountSupplier the supplier being transitively called
          * @return A supplier transitively calling the provided supplier
          *
          * @param <T> the type being supplied
         </T> */
-        fun <T> supplier(supplier: Supplier<T?>): Supplier<T?> {
-            require(supplier != null) {"'supplier' cannot be null"}
-            return ValueFromSupplier(null, supplier)
+        fun <T> supplier(amountSupplier: Supplier<T>): ValueFromSupplier<T> {
+            return ValueFromSupplier(null, amountSupplier)
         }
+
     }
 }

@@ -1,66 +1,22 @@
-package org.fermented.dairy.galactic.merchant;
+package org.fermented.dairy.galactic.merchant
 
-import org.fermented.dairy.galactic.merchant.exceptions.UnknownValueException;
-import org.fermented.dairy.galactic.merchant.functional.TriFunction;
-import org.fermented.dairy.galactic.merchant.functional.ValueFromSupplier;
-import org.fermented.dairy.galactic.merchant.model.QueryData;
-import org.fermented.dairy.galactic.merchant.model.QueryData.CompleteValueHintQueryData;
-import org.fermented.dairy.galactic.merchant.model.QueryData.GetValueQueryData;
-import org.fermented.dairy.galactic.merchant.model.QueryData.MapToRomanQueryData;
-import org.fermented.dairy.galactic.merchant.model.QueryData.SimpleTranslationData;
-import org.fermented.dairy.galactic.merchant.model.QueryData.UnknownQueryData;
-import org.fermented.dairy.galactic.merchant.roman.numerals.RomanNumeralConverter;
+import org.fermented.dairy.galactic.merchant.exceptions.UnknownValueException
+import org.fermented.dairy.galactic.merchant.extensions.orThrow
+import org.fermented.dairy.galactic.merchant.functional.TriFunction
+import org.fermented.dairy.galactic.merchant.functional.ValueFromSupplier
+import org.fermented.dairy.galactic.merchant.model.QueryData
+import org.fermented.dairy.galactic.merchant.model.QueryData.*
+import org.fermented.dairy.galactic.merchant.roman.numerals.RomanNumeralConverter.convert
+import java.util.*
+import java.util.function.BiFunction
+import java.util.function.Supplier
+import java.util.regex.Matcher
+import java.util.regex.Pattern
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.function.BiFunction;
-import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+class ValueConverter {
 
-/**
- * Class that accepts input and routes to appropriate router.
- */
-public class ValueConverter {
-
-    private static final List<Pattern> MAP_TO_ROMAN_QUERY_PATTERNS =
-            Stream.of("^(?<alienWord>\\w+) is (?<romanChar>M|m|D|d|C|c|L|l|X|x|V|v|I|i)$")
-                    .map(Pattern::compile).toList();
-
-    private static final List<Pattern> COMPLETE_VALUE_HINT_QUERY_PATTERNS =
-            Stream.of("^(?<alienWords>[\\w ]+) (?<metal>\\w+) is (?<amount>\\d+) Credits$")
-                    .map(Pattern::compile).toList();
-
-    private static final List<Pattern> GET_VALUE_QUERY_PATTERNS =
-            Stream.of("how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+) \\?$",
-                            "how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+)\\?$")
-                    .map(Pattern::compile).toList();
-
-    private static final List<Pattern> SIMPLE_TRANSLATION_QUERY_PATTERNS =
-            Stream.of("how much is (?<alienWords>[\\w ]+) \\?",
-                            "how much is (?<alienWords>[\\w ]+)\\?")
-                    .map(Pattern::compile).toList();
-
-    @SuppressWarnings("Convert2MethodRef")
-//Deliberate to allow for parameter order to change without using indexes in the template
-    private static final TriFunction<String, String, Double, String> GET_VALUE_QUERY_RESULT_FUNCTION =
-            (alienWords, metal, value) -> "%s %s is %.2f Credits".formatted(alienWords, metal, value);
-
-    @SuppressWarnings("Convert2MethodRef")
-//Deliberate to allow for parameter order to change without using indexes in the template
-    private static final BiFunction<String, Integer, String> GET_SIMPLE_QUERY_RESULT_FUNCTION =
-            (alienWords, value) -> "%s is %d".formatted(alienWords, value);
-
-    private static final String VALUE_UNKNOWN_TEMPLATE = "I don't know what %s is";
-    private static final String UNKNOWN_QUERY = "I have no idea what you are talking about";
-
-    private final Map<String, Character> alienWordToRomanCharMap = HashMap.newHashMap(7);
-    private final Map<String, Supplier<Double>> metalToMultiplierSupplierMap = new HashMap<>();
+    private val alienWordToRomanCharMap: MutableMap<String, Char> = HashMap.newHashMap(7)
+    private val metalToMultiplierSupplierMap: MutableMap<String, Supplier<Double>> = HashMap()
 
     /**
      * Translates input query to response.
@@ -68,126 +24,164 @@ public class ValueConverter {
      * @param input The input query
      * @return The response, empty string if query is accepted but no response is anticipated as in the case of a query that populates data
      */
-    public String acceptInput(String input) {
+    fun acceptInput(input: String): String {
         try {
-            return switch (getQueryData(input)) {
-                case MapToRomanQueryData queryData-> {
+            return when (val queryData = getQueryData(input)) {
+                is MapToRomanQueryData -> {
                     //<editor-fold desc="Ingest Alien Word to Roman Numeral Value Hint Data" defaultstate="collapsed">
-                    alienWordToRomanCharMap.put(queryData.alienWord(), queryData.romanNumeral());
-                    yield "";
+                    alienWordToRomanCharMap[queryData.alienWord] = queryData.romanNumeral
+                    return ""
                     //</editor-fold>
                 }
-                case CompleteValueHintQueryData queryData -> {
+                is CompleteValueHintQueryData -> {
                     //<editor-fold desc="Ingest Complete Value Hint Data" defaultstate="collapsed">
-                    Supplier<Double> amountSupplier = () -> {
-                        int fromAlienPhrase = RomanNumeralConverter.convert(
-                                getAlienToRoman(queryData.alienPhrase())
-                        );
-                        return (double) queryData.amount() / fromAlienPhrase;
-                    };
+                    val amountSupplier = Supplier<Double> {
+                        val fromAlienPhrase: Int = convert(
+                                getAlienToRoman(queryData.alienPhrase)
+                        )
 
-                    if (areAllKnown(queryData.alienPhrase()))
-                        metalToMultiplierSupplierMap.put(queryData.metal(), ValueFromSupplier.Companion.value(amountSupplier.get())); //TODO: WTF is a companion and why can't I have static factories?
+                        queryData.amount.toDouble() / fromAlienPhrase.toDouble()
+                    }
+
+                    if (areAllKnown(queryData.alienPhrase))
+                        metalToMultiplierSupplierMap[queryData.metal] = ValueFromSupplier.value(amountSupplier.get())
                     else
-                        metalToMultiplierSupplierMap.put(queryData.metal(), ValueFromSupplier.Companion.supplier(amountSupplier));  //If alien to roman numeral mapping is not known, map the supplier for later
+                        metalToMultiplierSupplierMap[queryData.metal] = ValueFromSupplier.supplier(
+                            amountSupplier
+                        )  //If alien to roman numeral mapping is not known, map the supplier for later
 
-                    yield "";
+                    return ""
                     //</editor-fold>
                 }
-                case GetValueQueryData queryData -> translateAlienPhrase(queryData.alienWords(), queryData.metal());
-                case SimpleTranslationData queryData -> GET_SIMPLE_QUERY_RESULT_FUNCTION.apply(
-                        queryData.alienPhrase(),
-                        RomanNumeralConverter.convert(getAlienToRoman(queryData.alienPhrase()))
-                );
+                is GetValueQueryData -> translateAlienPhrase(queryData.alienWords, queryData.metal)
+                is SimpleTranslationData -> GET_SIMPLE_QUERY_RESULT_FUNCTION.apply(
+                        queryData.alienPhrase,
+                        convert(getAlienToRoman(queryData.alienPhrase))
+                )
                 //noinspection unused unnamed lambda params only available in JDK 22
-                case UnknownQueryData unknown -> UNKNOWN_QUERY;
-                default -> throw new IllegalStateException("Unexpected value: " + getQueryData(input));
-            };
-        } catch (final UnknownValueException tfe) {
-            return VALUE_UNKNOWN_TEMPLATE.formatted(tfe.unknownValue);
+                is UnknownQueryData -> UNKNOWN_QUERY
+            }
+        } catch (tfe: UnknownValueException ) {
+            return VALUE_UNKNOWN_TEMPLATE.format(tfe.unknownValue)
         }
     }
 
-    private QueryData getQueryData(final String input) {
-        Optional<MapToRomanQueryData> optionalMapToRomanQueryData =
-                MAP_TO_ROMAN_QUERY_PATTERNS.stream()
-                        .map(pattern -> pattern.matcher(input))
-                        .filter(Matcher::matches)
-                        .map(matcher -> new MapToRomanQueryData(
-                                matcher.group("alienWord"),
-                                matcher.group("romanChar")
-                                        .toUpperCase()
-                                        .toCharArray()[0]))
-                        .findFirst();
-        if (optionalMapToRomanQueryData.isPresent())
-            return optionalMapToRomanQueryData.get();
+    private fun getQueryData(input: String): QueryData {
+        val mapToRomanQueryData =
+            MAP_TO_ROMAN_QUERY_PATTERNS.asSequence()
+                .map { pattern: Pattern -> pattern.matcher(input) }
+                .filter { obj: Matcher -> obj.matches() }
+                .map { matcher: Matcher ->
+                    MapToRomanQueryData(
+                        matcher.group("alienWord"),
+                        matcher.group("romanChar")
+                            .uppercase(Locale.getDefault())
+                            .toCharArray()[0]
+                    )
+                }
+                .firstOrNull()
 
-        Optional<CompleteValueHintQueryData> optionalCompleteValueHintQueryData =
-                COMPLETE_VALUE_HINT_QUERY_PATTERNS.stream()
-                        .map(pattern -> pattern.matcher(input))
-                        .filter(Matcher::matches)
-                        .map(matcher -> new CompleteValueHintQueryData(matcher.group("alienWords"),
-                                matcher.group("metal"),
-                                Integer.parseInt(matcher.group("amount"))))
-                        .findFirst();
+        if (mapToRomanQueryData != null) return mapToRomanQueryData
 
-        if (optionalCompleteValueHintQueryData.isPresent())
-            return optionalCompleteValueHintQueryData.get();
+        val completeValueHintQueryData =
+            COMPLETE_VALUE_HINT_QUERY_PATTERNS.asSequence()
+                .map { pattern: Pattern -> pattern.matcher(input) }
+                .filter { obj: Matcher -> obj.matches() }
+                .map { matcher: Matcher ->
+                    CompleteValueHintQueryData(
+                        matcher.group("alienWords"),
+                        matcher.group("metal"),
+                        matcher.group("amount").toInt()
+                    )
+                }
+                .firstOrNull()
 
-        Optional<GetValueQueryData> optionalGetValueQueryData =
-                GET_VALUE_QUERY_PATTERNS.stream()
-                        .map(pattern -> pattern.matcher(input))
-                        .filter(Matcher::matches)
-                        .map(matcher -> new GetValueQueryData(
-                                matcher.group("alienWords"),
-                                matcher.group("metal")
-                        ))
-                        .findFirst();
+        if (completeValueHintQueryData != null) return completeValueHintQueryData
 
-        if (optionalGetValueQueryData.isPresent())
-            return optionalGetValueQueryData.get();
+        val getValueQueryData =
+            GET_VALUE_QUERY_PATTERNS.asSequence()
+                .map { pattern: Pattern -> pattern.matcher(input) }
+                .filter { obj: Matcher -> obj.matches() }
+                .map { matcher: Matcher ->
+                    GetValueQueryData(
+                        matcher.group("alienWords"),
+                        matcher.group("metal")
+                    )
+                }
+                .firstOrNull()
 
-        Optional<SimpleTranslationData> optionalSimpleTranslationData =
-                SIMPLE_TRANSLATION_QUERY_PATTERNS.stream()
-                        .map(pattern -> pattern.matcher(input))
-                        .filter(Matcher::matches)
-                        .map(matcher -> new SimpleTranslationData(matcher.group("alienWords")))
-                        .findFirst();
+        if (getValueQueryData != null) return getValueQueryData
 
-        if (optionalSimpleTranslationData.isPresent())
-            return optionalSimpleTranslationData.get();
+        val simpleTranslationData =
+            SIMPLE_TRANSLATION_QUERY_PATTERNS.asSequence()
+                .map { pattern: Pattern -> pattern.matcher(input) }
+                .filter { obj: Matcher -> obj.matches() }
+                .map { matcher: Matcher -> SimpleTranslationData(matcher.group("alienWords")) }
+                .firstOrNull()
 
-        return new UnknownQueryData(input);
+        if (simpleTranslationData != null) return simpleTranslationData
+
+        return UnknownQueryData(input)
     }
 
-    private String translateAlienPhrase(final String alienPhrase, final String metal) {
-        final int value = RomanNumeralConverter.convert(getAlienToRoman(alienPhrase));
-        final Double metalValue = metalToMultiplierSupplierMap
-                .getOrDefault(metal, () -> {
-                    throw new UnknownValueException(metal);
-                })//Workaround for missing orThrow method
-                .get();
-        final double amount = value * metalValue;
+    private fun translateAlienPhrase(alienPhrase: String, metal: String): String {
+        val value = convert(getAlienToRoman(alienPhrase))
+        val metalValue = metalToMultiplierSupplierMap
+            .orThrow(metal) {throw UnknownValueException(metal)}
+            .get()
+        val amount = value * metalValue
 
-        return GET_VALUE_QUERY_RESULT_FUNCTION.apply(alienPhrase, metal, amount);
-
+        return GET_VALUE_QUERY_RESULT_FUNCTION.apply(alienPhrase, metal, amount)
     }
 
-    private String getAlienToRoman(final String alienPhrase) {
-        return Arrays.stream(alienPhrase.split(" "))
-                .map(alienWord -> {
-                    Character romanChar = alienWordToRomanCharMap.get(alienWord);
-                    if (romanChar == null)
-                        throw new UnknownValueException(alienWord);
-                    return romanChar;
-                })
-                .map(Object::toString)
-                .collect(Collectors.joining());
+    private fun getAlienToRoman(alienPhrase: String): String {
+        return alienPhrase.split(" ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray().asSequence()
+            .map { alienWord: String? -> alienWordToRomanCharMap[alienWord] ?: throw UnknownValueException(alienWord!!) }
+            .map { char: Char ->  char.toString()}
+            .joinToString (separator = "")
     }
 
-    private boolean areAllKnown(final String alienPhrase) {
-        return Arrays.stream(alienPhrase.split(" "))
-                .allMatch(alienWordToRomanCharMap::containsKey);
+    private fun areAllKnown(alienPhrase: String): Boolean {
+        return alienPhrase.split(" ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray().asSequence()
+            .all { key: String? -> alienWordToRomanCharMap.containsKey(key) }
     }
 
+    companion object {
+        val MAP_TO_ROMAN_QUERY_PATTERNS: List<Pattern> =
+            listOf("^(?<alienWord>\\w+) is (?<romanChar>M|m|D|d|C|c|L|l|X|x|V|v|I|i)$")
+                .map { regex: String -> Pattern.compile(regex) }
+
+        val COMPLETE_VALUE_HINT_QUERY_PATTERNS: List<Pattern> =
+            listOf("^(?<alienWords>[\\w ]+) (?<metal>\\w+) is (?<amount>\\d+) Credits$")
+                .map { regex: String -> Pattern.compile(regex) }
+
+        val GET_VALUE_QUERY_PATTERNS: List<Pattern> = listOf(
+            "how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+) \\?$",
+            "how many Credits is (?<alienWords>[\\w ]+) (?<metal>\\w+)\\?$"
+        )
+            .map { regex: String -> Pattern.compile(regex) }
+
+        val SIMPLE_TRANSLATION_QUERY_PATTERNS: List<Pattern> = listOf(
+            "how much is (?<alienWords>[\\w ]+) \\?",
+            "how much is (?<alienWords>[\\w ]+)\\?"
+        )
+            .map { regex: String -> Pattern.compile(regex) }
+
+        //Deliberate to allow for parameter order to change without using indexes in the template
+        val GET_VALUE_QUERY_RESULT_FUNCTION: TriFunction<String, String, Double, String> =
+            TriFunction { alienWords: String, metal: String?, value: Double? ->
+                "%s %s is %.2f Credits".format(
+                    alienWords,
+                    metal,
+                    value
+                )
+            }
+
+        //Deliberate to allow for parameter order to change without using indexes in the template
+        val GET_SIMPLE_QUERY_RESULT_FUNCTION: BiFunction<String, Int, String> =
+            BiFunction { alienWords, value -> "$alienWords is $value"}
+
+        const val VALUE_UNKNOWN_TEMPLATE = "I don't know what %s is"
+        const val UNKNOWN_QUERY = "I have no idea what you are talking about"
+    }
 }
