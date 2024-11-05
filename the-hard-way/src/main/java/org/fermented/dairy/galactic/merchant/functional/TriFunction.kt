@@ -1,16 +1,14 @@
-package org.fermented.dairy.galactic.merchant.functional;
+package org.fermented.dairy.galactic.merchant.functional
 
 /**
- * Functional interface providing a function that maps three inputs to a result similar to {@link java.util.function.BiFunction}
+ * Functional interface providing a function that maps three inputs to a result similar to [java.util.function.BiFunction]
  *
  * @param <T> The type of the first parameter
  * @param <U> The type of the second parameter
  * @param <V> The type of the forth parameter
  * @param <R> The return type
- */
-@FunctionalInterface
-public interface TriFunction<T, U, V, R> {
-
+</R></V></U></T> */
+fun interface TriFunction<T, U, V, R> {
     /**
      * Maps three parameters to a result
      *
@@ -20,5 +18,5 @@ public interface TriFunction<T, U, V, R> {
      *
      * @return the result of the mapping
      */
-    R apply(T t, U u, V v);
+    fun apply(t: T, u: U, v: V): R
 }

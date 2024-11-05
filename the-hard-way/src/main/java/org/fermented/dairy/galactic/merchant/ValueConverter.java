@@ -3,12 +3,12 @@ package org.fermented.dairy.galactic.merchant;
 import org.fermented.dairy.galactic.merchant.exceptions.UnknownValueException;
 import org.fermented.dairy.galactic.merchant.functional.TriFunction;
 import org.fermented.dairy.galactic.merchant.functional.ValueFromSupplier;
-import org.fermented.dairy.galactic.merchant.model.CompleteValueHintQueryData;
-import org.fermented.dairy.galactic.merchant.model.GetValueQueryData;
-import org.fermented.dairy.galactic.merchant.model.MapToRomanQueryData;
 import org.fermented.dairy.galactic.merchant.model.QueryData;
-import org.fermented.dairy.galactic.merchant.model.SimpleTranslationData;
-import org.fermented.dairy.galactic.merchant.model.UnknownQueryData;
+import org.fermented.dairy.galactic.merchant.model.QueryData.CompleteValueHintQueryData;
+import org.fermented.dairy.galactic.merchant.model.QueryData.GetValueQueryData;
+import org.fermented.dairy.galactic.merchant.model.QueryData.MapToRomanQueryData;
+import org.fermented.dairy.galactic.merchant.model.QueryData.SimpleTranslationData;
+import org.fermented.dairy.galactic.merchant.model.QueryData.UnknownQueryData;
 import org.fermented.dairy.galactic.merchant.roman.numerals.RomanNumeralConverter;
 
 import java.util.Arrays;
@@ -43,14 +43,16 @@ public class ValueConverter {
 
     private static final List<Pattern> SIMPLE_TRANSLATION_QUERY_PATTERNS =
             Stream.of("how much is (?<alienWords>[\\w ]+) \\?",
-                    "how much is (?<alienWords>[\\w ]+)\\?")
+                            "how much is (?<alienWords>[\\w ]+)\\?")
                     .map(Pattern::compile).toList();
 
-    @SuppressWarnings("Convert2MethodRef")//Deliberate to allow for parameter order to change without using indexes in the template
+    @SuppressWarnings("Convert2MethodRef")
+//Deliberate to allow for parameter order to change without using indexes in the template
     private static final TriFunction<String, String, Double, String> GET_VALUE_QUERY_RESULT_FUNCTION =
             (alienWords, metal, value) -> "%s %s is %.2f Credits".formatted(alienWords, metal, value);
 
-    @SuppressWarnings("Convert2MethodRef")//Deliberate to allow for parameter order to change without using indexes in the template
+    @SuppressWarnings("Convert2MethodRef")
+//Deliberate to allow for parameter order to change without using indexes in the template
     private static final BiFunction<String, Integer, String> GET_SIMPLE_QUERY_RESULT_FUNCTION =
             (alienWords, value) -> "%s is %d".formatted(alienWords, value);
 
@@ -62,46 +64,47 @@ public class ValueConverter {
 
     /**
      * Translates input query to response.
+     *
      * @param input The input query
      * @return The response, empty string if query is accepted but no response is anticipated as in the case of a query that populates data
      */
     public String acceptInput(String input) {
         try {
             return switch (getQueryData(input)) {
-                case MapToRomanQueryData(String alienWord, char romanNumeral) -> {
+                case MapToRomanQueryData queryData-> {
                     //<editor-fold desc="Ingest Alien Word to Roman Numeral Value Hint Data" defaultstate="collapsed">
-                    alienWordToRomanCharMap.put(alienWord, romanNumeral);
+                    alienWordToRomanCharMap.put(queryData.alienWord(), queryData.romanNumeral());
                     yield "";
                     //</editor-fold>
                 }
-                case CompleteValueHintQueryData(String alienPhrase, String metal, int value) -> {
+                case CompleteValueHintQueryData queryData -> {
                     //<editor-fold desc="Ingest Complete Value Hint Data" defaultstate="collapsed">
                     Supplier<Double> amountSupplier = () -> {
                         int fromAlienPhrase = RomanNumeralConverter.convert(
-                                getAlienToRoman(alienPhrase)
+                                getAlienToRoman(queryData.alienPhrase())
                         );
-                        return (double) value / fromAlienPhrase;
+                        return (double) queryData.amount() / fromAlienPhrase;
                     };
 
-                    if (areAllKnown(alienPhrase))
-                        metalToMultiplierSupplierMap.put(metal, ValueFromSupplier.value(amountSupplier.get()));
+                    if (areAllKnown(queryData.alienPhrase()))
+                        metalToMultiplierSupplierMap.put(queryData.metal(), ValueFromSupplier.Companion.value(amountSupplier.get())); //TODO: WTF is a companion and why can't I have static factories?
                     else
-                        metalToMultiplierSupplierMap.put(metal, ValueFromSupplier.supplier(amountSupplier));  //If alien to roman numeral mapping is not known, map the supplier for later
+                        metalToMultiplierSupplierMap.put(queryData.metal(), ValueFromSupplier.Companion.supplier(amountSupplier));  //If alien to roman numeral mapping is not known, map the supplier for later
 
                     yield "";
                     //</editor-fold>
                 }
-                case GetValueQueryData(String alienPhrase, String metal) -> translateAlienPhrase(alienPhrase, metal);
-                case SimpleTranslationData(String alienPhrase) ->
-                        GET_SIMPLE_QUERY_RESULT_FUNCTION.apply(
-                                alienPhrase,
-                                RomanNumeralConverter.convert(getAlienToRoman(alienPhrase))
-                        );
+                case GetValueQueryData queryData -> translateAlienPhrase(queryData.alienWords(), queryData.metal());
+                case SimpleTranslationData queryData -> GET_SIMPLE_QUERY_RESULT_FUNCTION.apply(
+                        queryData.alienPhrase(),
+                        RomanNumeralConverter.convert(getAlienToRoman(queryData.alienPhrase()))
+                );
                 //noinspection unused unnamed lambda params only available in JDK 22
                 case UnknownQueryData unknown -> UNKNOWN_QUERY;
+                default -> throw new IllegalStateException("Unexpected value: " + getQueryData(input));
             };
-        } catch (final UnknownValueException tfe){
-            return VALUE_UNKNOWN_TEMPLATE.formatted(tfe.getUnknownValue());
+        } catch (final UnknownValueException tfe) {
+            return VALUE_UNKNOWN_TEMPLATE.formatted(tfe.unknownValue);
         }
     }
 
@@ -111,10 +114,10 @@ public class ValueConverter {
                         .map(pattern -> pattern.matcher(input))
                         .filter(Matcher::matches)
                         .map(matcher -> new MapToRomanQueryData(
-                                    matcher.group("alienWord"),
-                                    matcher.group("romanChar")
-                                            .toUpperCase()
-                                            .toCharArray()[0]))
+                                matcher.group("alienWord"),
+                                matcher.group("romanChar")
+                                        .toUpperCase()
+                                        .toCharArray()[0]))
                         .findFirst();
         if (optionalMapToRomanQueryData.isPresent())
             return optionalMapToRomanQueryData.get();
@@ -124,8 +127,8 @@ public class ValueConverter {
                         .map(pattern -> pattern.matcher(input))
                         .filter(Matcher::matches)
                         .map(matcher -> new CompleteValueHintQueryData(matcher.group("alienWords"),
-                                    matcher.group("metal"),
-                                    Integer.parseInt(matcher.group("amount"))))
+                                matcher.group("metal"),
+                                Integer.parseInt(matcher.group("amount"))))
                         .findFirst();
 
         if (optionalCompleteValueHintQueryData.isPresent())
@@ -141,7 +144,7 @@ public class ValueConverter {
                         ))
                         .findFirst();
 
-        if(optionalGetValueQueryData.isPresent())
+        if (optionalGetValueQueryData.isPresent())
             return optionalGetValueQueryData.get();
 
         Optional<SimpleTranslationData> optionalSimpleTranslationData =
@@ -151,7 +154,7 @@ public class ValueConverter {
                         .map(matcher -> new SimpleTranslationData(matcher.group("alienWords")))
                         .findFirst();
 
-        if(optionalSimpleTranslationData.isPresent())
+        if (optionalSimpleTranslationData.isPresent())
             return optionalSimpleTranslationData.get();
 
         return new UnknownQueryData(input);
@@ -160,7 +163,9 @@ public class ValueConverter {
     private String translateAlienPhrase(final String alienPhrase, final String metal) {
         final int value = RomanNumeralConverter.convert(getAlienToRoman(alienPhrase));
         final Double metalValue = metalToMultiplierSupplierMap
-                .getOrDefault(metal, () -> {throw new UnknownValueException(metal);})//Workaround for missing orThrow method
+                .getOrDefault(metal, () -> {
+                    throw new UnknownValueException(metal);
+                })//Workaround for missing orThrow method
                 .get();
         final double amount = value * metalValue;
 
