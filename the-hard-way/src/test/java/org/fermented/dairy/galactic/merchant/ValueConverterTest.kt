@@ -1,175 +1,278 @@
-package org.fermented.dairy.galactic.merchant;
+package org.fermented.dairy.galactic.merchant
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.property.Exhaustive
+import io.kotest.property.checkAll
+import io.kotest.property.exhaustive.collection
 
-import java.util.List;
-import java.util.stream.Stream;
+class ValueConverterTest : StringSpec({
 
-import static org.junit.jupiter.api.Assertions.*;
-
-class ValueConverterTest {
-
-    @ParameterizedTest(name = "{index}. {1}")
-    @MethodSource("getSuccessValues")
-    @DisplayName("Successful translations")
-    void testSuccess(final List<Pair<String, String>> value,
-                     @SuppressWarnings("unused") final String source //Linter says unused but is required for the naming of the parameter
-                     ) {
-        final ValueConverter translator = new ValueConverter();
-        value.forEach(pair ->
-                        assertEquals(pair.getLeft(), translator.acceptInput(pair.getRight()), () -> "\"" + pair.getRight() + "\" not Mapped")
-                );
+    "Successful translations" {
+        checkAll(Exhaustive.collection(getSuccessValues())) { requestResponsePairs ->
+            run {
+                val translator = ValueConverter()
+                requestResponsePairs.forEach { requestResponse ->
+                    translator.acceptInput(requestResponse.request) shouldBe
+                            requestResponse.response
+                }
+            }
+        }
     }
 
-    @ParameterizedTest(name = "{index}. \"{0}\" is not valid")
-    @MethodSource("getUnsuccessfulValues_notValidQueries")
-    @DisplayName("unsuccessful translations due to invalid queries")
-    void testUnSuccessful_notValidQueries(final String value) {
-        final ValueConverter translator = new ValueConverter();
-        assertEquals("I have no idea what you are talking about", translator.acceptInput(value));
+    "Unsuccessful translations due to invalid queries" {
+        checkAll(Exhaustive.collection(getUnsuccessfulValues_notValidQueries())) { value ->
+            run {
+                val translator = ValueConverter()
+                translator.acceptInput(value) shouldBe "I have no idea what you are talking about"
+            }
+        }
     }
 
-    @ParameterizedTest(name = "{index}. \"{1}\" missing Data should return \"{2}\"")
-    @MethodSource("getUnsuccessfulValues_noData")
-    @DisplayName("unsuccessful translations due to insufficient data")
-    void testUnsuccessfulValues_noData(final List<String> preQueries,
-                                       final String value,
-                                       final String expected) {
-        final ValueConverter translator = new ValueConverter();
-        preQueries.forEach(translator::acceptInput);
-        assertEquals(expected, translator.acceptInput(value));
+    "Unsuccessful translations due to insufficient data" {
+        checkAll(Exhaustive.collection(getUnsuccessfulValues_noData())) { conversationAndRequestResponsePair ->
+            run {
+                val translator = ValueConverter()
+                conversationAndRequestResponsePair.seedRequests.forEach {
+                    request -> translator.acceptInput(request)
+                }
+                conversationAndRequestResponsePair.finalRequestResponse.response shouldBe
+                        conversationAndRequestResponsePair.finalRequestResponse.response
+            }
+        }
     }
+})
 
-    public static Stream<Arguments> getSuccessValues() {
-        return Stream.of(
-                Arguments.of(
-                        List.of(
-                                Pair.of("", "glob is I"),
-                                Pair.of("", "prok is V"),
-                                Pair.of("", "pish is X"),
-                                Pair.of("", "tegj is L"),
-                                Pair.of("", "glob glob Silver is 34 Credits"),
-                                Pair.of("", "glob prok Gold is 57800 Credits"),
-                                Pair.of("", "pish pish Iron is 3910 Credits"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob ?"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver ?"),
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold ?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron ?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver?"),//Without the space before the '?'
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron?")
-                        ),
-                        "From examples"),
-                Arguments.of(List.of(
-                                Pair.of("", "flippity is I"),
-                                Pair.of("", "floppity is V"),
-                                Pair.of("", "flappity is X"),
-                                Pair.of("", "fluppity is L"),
-                                Pair.of("", "flippity flippity Silver is 34 Credits"),
-                                Pair.of("", "flippity floppity Gold is 57800 Credits"),
-                                Pair.of("", "flappity flappity Iron is 3910 Credits"),
-                                Pair.of("flappity fluppity flippity flippity is 42", "how much is flappity fluppity flippity flippity ?"),
-                                Pair.of("flappity fluppity flippity flippity is 42", "how much is flappity fluppity flippity flippity?"),
-                                Pair.of("flippity floppity Silver is 68.00 Credits", "how many Credits is flippity floppity Silver ?"),
-                                Pair.of("flippity floppity Gold is 57800.00 Credits", "how many Credits is flippity floppity Gold ?"),
-                                Pair.of("flippity floppity Iron is 782.00 Credits", "how many Credits is flippity floppity Iron ?"),
-                                Pair.of("flippity floppity Silver is 68.00 Credits", "how many Credits is flippity floppity Silver?"),//Without the space before the '?'
-                                Pair.of("flippity floppity Gold is 57800.00 Credits", "how many Credits is flippity floppity Gold?"),
-                                Pair.of("flippity floppity Iron is 782.00 Credits", "how many Credits is flippity floppity Iron?")
-                        ),
-                        "longer alien words"),
-                Arguments.of(
-                        List.of(
-                                Pair.of("", "glob is i"),
-                                Pair.of("", "prok is v"),
-                                Pair.of("", "pish is x"),
-                                Pair.of("", "tegj is l"),
-                                Pair.of("", "glob glob Silver is 34 Credits"),
-                                Pair.of("", "glob prok Gold is 57800 Credits"),
-                                Pair.of("", "pish pish Iron is 3910 Credits"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob ?"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver ?"),
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold ?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron ?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver?"),//Without the space before the '?'
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron?")
-                        ),
-                        "Lower Case Roman Numerals in query"),
-                Arguments.of(
-                        List.of(
-                                Pair.of("", "glob glob Silver is 34 Credits"),
-                                Pair.of("", "glob prok Gold is 57800 Credits"),
-                                Pair.of("", "pish pish Iron is 3910 Credits"),
-                                Pair.of("", "glob is I"),
-                                Pair.of("", "prok is V"),
-                                Pair.of("", "pish is X"),
-                                Pair.of("", "tegj is L"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob ?"),
-                                Pair.of("pish tegj glob glob is 42", "how much is pish tegj glob glob?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver ?"),
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold ?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron ?"),
-                                Pair.of("glob prok Silver is 68.00 Credits", "how many Credits is glob prok Silver?"),//Without the space before the '?'
-                                Pair.of("glob prok Gold is 57800.00 Credits", "how many Credits is glob prok Gold?"),
-                                Pair.of("glob prok Iron is 782.00 Credits", "how many Credits is glob prok Iron?")
-                        ),
-                        "Complete hints before Roman Numeral mapping")
-
-        );
-    }
-
-    public static Stream<Arguments> getUnsuccessfulValues_notValidQueries() {
-        return Stream.of(
-                "my spoon is too big",
-                "I said my spoon is too big",
-                "I am a banana",
-                "how much wood could a woodchuck chuck if a woodchuck could chuck wood?",
-                "Sausages",
-                "flim is ",//missing roman numeral
-                "flom is g",//not a roman numeral
-                "flam is adfgasdfg",//just garbage,
-                " is I",//blank alien word
-                "is I",//no alien word
-                "glob prok Silver is  Credits",//no value
-                "glob prok Silver is Credits",//no value
-                "how many Credits is Silver?",
-                "how many Credits is glod?",
-                "how many Credits is ?"
-        ).map(Arguments::of);
-    }
-
-    public static Stream<Arguments> getUnsuccessfulValues_noData() {
-        return Stream.of(
-                Arguments.of(
-                        List.of(),
-                        "how much is yippy dippy?",
-                        "I don't know what yippy is"),
-                Arguments.of(
-                        List.of("yippy is I"),
-                        "how much is yippy dippy?",
-                        "I don't know what dippy is"),
-                Arguments.of(
-                        List.of(),
-                        "how many Credits is yippy dippy Gold?",
-                        "I don't know what yippy is"),
-                Arguments.of(
-                        List.of(
-                                "yippy is I"),
-                        "how many Credits is yippy dippy Gold?",
-                        "I don't know what dippy is"),
-                Arguments.of(
-                        List.of(
-                                "yippy is I",
-                                "dippy is V"),
-                        "how many Credits is yippy dippy Gold?",
-                        "I don't know what Gold is")
-        );
-    }
+fun getSuccessValues(): List<List<RequestResponsePair>> {
+    return listOf(
+        listOf(//From examples
+            RequestResponsePair(response = "", request = "glob is I"),
+            RequestResponsePair(response = "", request = "prok is V"),
+            RequestResponsePair(response = "", request = "pish is X"),
+            RequestResponsePair(response = "", request = "tegj is L"),
+            RequestResponsePair(response = "", request = "glob glob Silver is 34 Credits"),
+            RequestResponsePair(response = "", request = "glob prok Gold is 57800 Credits"),
+            RequestResponsePair(response = "", request = "pish pish Iron is 3910 Credits"),
+            RequestResponsePair(response = "pish tegj glob glob is 42", request = "how much is pish tegj glob glob ?"),
+            RequestResponsePair(response = "pish tegj glob glob is 42", request = "how much is pish tegj glob glob?"),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver?"
+            ),  //Without the space before the '?'
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron?"
+            )
+        ),
+        listOf(//longer alien words
+            RequestResponsePair(response = "", request = "flippity is I"),
+            RequestResponsePair(response = "", request = "floppity is V"),
+            RequestResponsePair(response = "", request = "flappity is X"),
+            RequestResponsePair(response = "", request = "fluppity is L"),
+            RequestResponsePair(response = "", request = "flippity flippity Silver is 34 Credits"),
+            RequestResponsePair(response = "", request = "flippity floppity Gold is 57800 Credits"),
+            RequestResponsePair(response = "", request = "flappity flappity Iron is 3910 Credits"),
+            RequestResponsePair(
+                response = "flappity fluppity flippity flippity is 42",
+                request = "how much is flappity fluppity flippity flippity ?"
+            ),
+            RequestResponsePair(
+                response = "flappity fluppity flippity flippity is 42",
+                request = "how much is flappity fluppity flippity flippity?"
+            ),
+            RequestResponsePair(
+                response = "flippity floppity Silver is 68.00 Credits",
+                request = "how many Credits is flippity floppity Silver ?"
+            ),
+            RequestResponsePair(
+                response = "flippity floppity Gold is 57800.00 Credits",
+                request = "how many Credits is flippity floppity Gold ?"
+            ),
+            RequestResponsePair(
+                response = "flippity floppity Iron is 782.00 Credits",
+                request = "how many Credits is flippity floppity Iron ?"
+            ),
+            RequestResponsePair(
+                response = "flippity floppity Silver is 68.00 Credits",
+                request = "how many Credits is flippity floppity Silver?"
+            ),  //Without the space before the '?'
+            RequestResponsePair(
+                response = "flippity floppity Gold is 57800.00 Credits",
+                request = "how many Credits is flippity floppity Gold?"
+            ),
+            RequestResponsePair(
+                response = "flippity floppity Iron is 782.00 Credits",
+                request = "how many Credits is flippity floppity Iron?"
+            )
+        ),
+        listOf(//Lower Case Roman Numerals in query
+            RequestResponsePair(response = "", request = "glob is i"),
+            RequestResponsePair(response = "", request = "prok is v"),
+            RequestResponsePair(response = "", request = "pish is x"),
+            RequestResponsePair(response = "", request = "tegj is l"),
+            RequestResponsePair(response = "", request = "glob glob Silver is 34 Credits"),
+            RequestResponsePair(response = "", request = "glob prok Gold is 57800 Credits"),
+            RequestResponsePair(response = "", request = "pish pish Iron is 3910 Credits"),
+            RequestResponsePair(
+                response = "pish tegj glob glob is 42",
+                request = "how much is pish tegj glob glob ?"
+            ),
+            RequestResponsePair(
+                response = "pish tegj glob glob is 42",
+                request = "how much is pish tegj glob glob?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver?"
+            ),  //Without the space before the '?'
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron?"
+            )
+        ),
+        listOf(//"Complete hints before Roman Numeral mapping"
+            RequestResponsePair(response = "", request = "glob glob Silver is 34 Credits"),
+            RequestResponsePair(response = "", request = "glob prok Gold is 57800 Credits"),
+            RequestResponsePair(response = "", request = "pish pish Iron is 3910 Credits"),
+            RequestResponsePair(response = "", request = "glob is I"),
+            RequestResponsePair(response = "", request = "prok is V"),
+            RequestResponsePair(response = "", request = "pish is X"),
+            RequestResponsePair(response = "", request = "tegj is L"),
+            RequestResponsePair(
+                response = "pish tegj glob glob is 42",
+                request = "how much is pish tegj glob glob ?"
+            ),
+            RequestResponsePair(
+                response = "pish tegj glob glob is 42",
+                request = "how much is pish tegj glob glob?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron ?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Silver is 68.00 Credits",
+                request = "how many Credits is glob prok Silver?"
+            ),  //Without the space before the '?'
+            RequestResponsePair(
+                response = "glob prok Gold is 57800.00 Credits",
+                request = "how many Credits is glob prok Gold?"
+            ),
+            RequestResponsePair(
+                response = "glob prok Iron is 782.00 Credits",
+                request = "how many Credits is glob prok Iron?"
+            )
+        )
+    )
 }
+
+fun getUnsuccessfulValues_notValidQueries(): List<String> {
+    return listOf(
+        "my spoon is too big",
+        "I said my spoon is too big",
+        "I am a banana",
+        "how much wood could a woodchuck chuck if a woodchuck could chuck wood?",
+        "Sausages",
+        "flim is ",//missing roman numeral
+        "flom is g",//not a roman numeral
+        "flam is adfgasdfg",//just garbage,
+        " is I",//blank alien word
+        "is I",//no alien word
+        "glob prok Silver is  Credits",//no value
+        "glob prok Silver is Credits",//no value
+        "how many Credits is Silver?",
+        "how many Credits is glod?",
+        "how many Credits is ?"
+    )
+}
+
+fun getUnsuccessfulValues_noData(): List<ConversationAndRequestResponsePair> {
+    return listOf(
+        ConversationAndRequestResponsePair(
+            seedRequests = listOf(),
+            RequestResponsePair(
+                response = "how much is yippy dippy?",
+                request = "I don't know what yippy is"
+            )
+        ),
+        ConversationAndRequestResponsePair(
+            seedRequests = listOf("yippy is I"),
+            RequestResponsePair(
+                response = "how much is yippy dippy?",
+                request = "I don't know what dippy is"
+            )
+        ),
+        ConversationAndRequestResponsePair(
+            seedRequests = listOf(),
+            RequestResponsePair(
+                response = "how many Credits is yippy dippy Gold?",
+                request = "I don't know what yippy is"
+            )
+        ),
+        ConversationAndRequestResponsePair(
+            seedRequests = listOf(
+                "yippy is I"
+            ),
+            RequestResponsePair(
+                response = "how many Credits is yippy dippy Gold?",
+                request = "I don't know what dippy is"
+            )
+        ),
+        ConversationAndRequestResponsePair(
+            seedRequests = listOf(
+                "yippy is I",
+                "dippy is V"
+            ),
+            RequestResponsePair(
+                response = "how many Credits is yippy dippy Gold?",
+                request = "I don't know what Gold is"
+            )
+        )
+    )
+}
+
+data class RequestResponsePair(val response: String, val request: String)
+data class ConversationAndRequestResponsePair(
+    val seedRequests: List<String>,
+    val finalRequestResponse: RequestResponsePair
+)

@@ -1,76 +1,74 @@
-package org.fermented.dairy.galactic.merchant.roman.numerals;
+package org.fermented.dairy.galactic.merchant.roman.numerals
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import io.kotest.assertions.throwables.shouldThrowExactly
+import io.kotest.core.spec.style.StringSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.property.Exhaustive
+import io.kotest.property.checkAll
+import io.kotest.property.exhaustive.collection
+import java.util.*
 
-import java.util.stream.Stream;
-
-import static org.junit.jupiter.api.Assertions.*;
-
-class RomanNumeralConverterTest {
-
-    @ParameterizedTest(name = "{index}. \"{0}\" equals {1}")
-    @MethodSource("provideValidRomanNumerals")
-    @DisplayName("Validate sample roman numeral conversions")
-    void validateSampleRomanNumeralConversions(final String romanNumeral, final int expected) {
-        assertAll("",
-                () -> assertEquals(expected, RomanNumeralConverter.convert(romanNumeral)),
-                () -> assertEquals(expected, RomanNumeralConverter.convert(romanNumeral.toLowerCase())),
-                () -> assertEquals(expected, RomanNumeralConverter.convert(romanNumeral + " ")),
-                () -> assertEquals(expected, RomanNumeralConverter.convert(" " + romanNumeral))
-        );
+class RomanNumeralConverterTest : StringSpec({
+    "Validate sample roman numeral conversions" {
+        checkAll(
+            Exhaustive.collection(
+                provideValidRomanNumerals()
+            )
+        ) { pair ->
+            run {
+                RomanNumeralConverter.convert(pair.romanNumerals) shouldBe pair.expected
+                RomanNumeralConverter.convert(pair.romanNumerals.lowercase(Locale.getDefault())) shouldBe pair.expected
+                RomanNumeralConverter.convert(pair.romanNumerals+" ") shouldBe pair.expected
+                RomanNumeralConverter.convert(" " +pair.romanNumerals) shouldBe pair.expected
+            }
+        }
     }
 
-    @ParameterizedTest(name = "{index}. {0} is invalid")
-    @MethodSource("provideInvalidRomanNumerals")
-    @DisplayName("not a valid roman numeral")
-    void notAValidRomanNumeral(final String romanNumeral) {
-        final IllegalArgumentException exception = assertThrows(IllegalArgumentException.class,
-                () -> RomanNumeralConverter.convert(romanNumeral));
-
-        assertEquals(romanNumeral + " is not a valid roman numeral number",
-                exception.getMessage());
+    "not a valid roman numeral"{
+        checkAll(  Exhaustive.collection(provideInvalidRomanNumerals())) { romanNumeral ->
+            val exception = shouldThrowExactly<IllegalArgumentException>{
+                RomanNumeralConverter.convert(romanNumeral)
+            }
+            "$romanNumeral is not a valid roman numeral number" shouldBe exception.message
+        }
     }
 
-    @Test
-    @DisplayName("Validate null converts to 0")
-    void validateNullConvertsTo0() {
-        assertEquals(0, RomanNumeralConverter.convert(null));
+    "Validate null converts to 0"{
+        RomanNumeralConverter.convert(null) shouldBe 0
     }
 
+})
 
-    public static Stream<Arguments> provideInvalidRomanNumerals() {
-        return Stream.of("No", "MNo", "_+{}", "VX", "IIII", "XXXX", "CCCC", "VIV").map(Arguments::of);
-    }
-
-    public static Stream<Arguments> provideValidRomanNumerals() {
-        return Stream.of(
-                Arguments.of("", 0),
-                Arguments.of("I", 1),
-                Arguments.of("II", 2),
-                Arguments.of("III", 3),
-                Arguments.of("IV", 4),
-                Arguments.of("V", 5),
-                Arguments.of("VI", 6),
-                Arguments.of("VII", 7),
-                Arguments.of("VIII", 8),
-                Arguments.of("IX", 9),
-                Arguments.of("X", 10),
-                Arguments.of("XL", 40),
-                Arguments.of("L", 50),
-                Arguments.of("XC", 90),
-                Arguments.of("C", 100),
-                Arguments.of("CD", 400),
-                Arguments.of("D", 500),
-                Arguments.of("CM", 900),
-                Arguments.of("M", 1000),
-                Arguments.of("MCMLXXXIV", 1984),
-                Arguments.of("MMXXIV", 2024),
-                Arguments.of("CXXIX", 129),
-                Arguments.of("MMMCMXCIX", 3999)
-        );
-    }
+fun provideValidRomanNumerals(): List<ParamExpectPair> {
+    return listOf(
+        ParamExpectPair(romanNumerals = "", expected = 0),
+        ParamExpectPair(romanNumerals = "I", expected = 1),
+        ParamExpectPair(romanNumerals = "II", expected = 2),
+        ParamExpectPair(romanNumerals = "III", expected = 3),
+        ParamExpectPair(romanNumerals = "IV", expected = 4),
+        ParamExpectPair(romanNumerals = "V", expected = 5),
+        ParamExpectPair(romanNumerals = "VI", expected = 6),
+        ParamExpectPair(romanNumerals = "VII", expected = 7),
+        ParamExpectPair(romanNumerals = "VIII", expected = 8),
+        ParamExpectPair(romanNumerals = "IX", expected = 9),
+        ParamExpectPair(romanNumerals = "X", expected = 10),
+        ParamExpectPair(romanNumerals = "XL", expected = 40),
+        ParamExpectPair(romanNumerals = "L", expected = 50),
+        ParamExpectPair(romanNumerals = "XC", expected = 90),
+        ParamExpectPair(romanNumerals = "C", expected = 100),
+        ParamExpectPair(romanNumerals = "CD", expected = 400),
+        ParamExpectPair(romanNumerals = "D", expected = 500),
+        ParamExpectPair(romanNumerals = "CM", expected = 900),
+        ParamExpectPair(romanNumerals = "M", expected = 1000),
+        ParamExpectPair(romanNumerals = "MCMLXXXIV", expected = 1984),
+        ParamExpectPair(romanNumerals = "MMXXIV", expected = 2024),
+        ParamExpectPair(romanNumerals = "CXXIX", expected = 129),
+        ParamExpectPair(romanNumerals = "MMMCMXCIX", expected = 3999)
+    )
 }
+
+fun provideInvalidRomanNumerals(): List<String> {
+    return listOf("No", "MNo", "_+{}", "VX", "IIII", "XXXX", "CCCC", "VIV")
+}
+
+data class ParamExpectPair(val romanNumerals: String, val expected: Int )
